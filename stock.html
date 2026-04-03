@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soft Dark 주식 모의투자</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --card-bg: #2d2d2d;
+            --text-color: #e0e0e0;
+            --primary-blue: #4a90e2;
+            --accent-red: #ff5252;
+            --accent-blue: #536dfe;
+            --border-color: #444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; display: flex; justify-content: center; }
+
+        #container { width: 100%; max-width: 1100px; display: flex; flex-direction: column; gap: 20px; }
+
+        /* 헤더 & 타이머 */
+        .header { background: var(--card-bg); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border-color); }
+        #time-display { font-size: 1.2rem; color: var(--primary-blue); font-weight: bold; margin-top: 10px; }
+
+        /* 현황판 Grid */
+        .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+        .stock-btn { 
+            background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-color);
+            padding: 15px; border-radius: 8px; cursor: pointer; transition: 0.2s; text-align: left;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .stock-btn:hover { border-color: var(--primary-blue); background: #383838; }
+        .stock-btn.active { border: 2px solid var(--primary-blue); background: #3d3d3d; }
+        .price-info { text-align: right; }
+        .change-rate { font-size: 0.85rem; font-weight: bold; }
+
+        /* 메인 영역 */
+        .main-content { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; }
+
+        /* 거래 창 */
+        .trade-panel { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .selected-name { font-size: 1.5rem; margin-bottom: 20px; color: var(--primary-blue); text-align: center; }
+        .input-group { margin-bottom: 15px; display: flex; gap: 10px; }
+        input { 
+            flex: 1; background: #1e1e1e; border: 1px solid var(--border-color); color: white; 
+            padding: 10px; border-radius: 5px; text-align: right; font-size: 1.1rem;
+        }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-buy { background: var(--accent-red); color: white; }
+        .btn-sell { background: var(--accent-blue); color: white; }
+        .asset-info { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); font-size: 1.1rem; }
+
+        /* 보유 목록 테이블 */
+        .list-panel { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: center; border-bottom: 1px solid var(--border-color); }
+        th { color: #888; font-weight: normal; }
+        .up { color: var(--accent-red); }
+        .down { color: var(--accent-blue); }
+
+        @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <div class="header">
+        <h1>실시간 주식 시장</h1>
+        <div id="time-display">다음 변동까지: <span id="timer">30</span>초</div>
+    </div>
+
+    <div class="board" id="stock-board">
+        </div>
+
+    <div class="main-content">
+        <div class="trade-panel">
+            <div class="selected-name" id="selected-title">종목을 선택하세요</div>
+            <div class="input-group">
+                <input type="number" id="trade-qty" placeholder="수량 입력" min="1">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-buy" style="flex: 1;" onclick="executeTrade('buy')">매수</button>
+                <button class="btn btn-sell" style="flex: 1;" onclick="executeTrade('sell')">매도</button>
+            </div>
+            <div class="asset-info">
+                보유 자산: <span id="user-asset" style="color: #ffca28;">1,000,000</span> 원
+            </div>
+        </div>
+
+        <div class="list-panel">
+            <h3>내 포트폴리오</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>종목</th>
+                        <th>보유량</th>
+                        <th>평단가</th>
+                        <th>현재가</th>
+                        <th>수익률</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolio-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. 데이터 초기화
+    let asset = 1000000;
+    let selectedId = null;
+    let timeLeft = 30;
+
+    const stocks = [
+        { id: 'os', name: '오성전자', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 },
+        { id: 'mr', name: '미래자동차', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 },
+        { id: 'pp', name: '파파야게임즈', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 },
+        { id: 'rg', name: '알지화학', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 },
+        { id: 'ts', name: '떼쓸라', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 },
+        { id: 'co', name: '고가콜라', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 },
+        { id: 'dg', name: '뒤즈니', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 },
+        { id: 'np', name: '넷플렉스', price: 1000, oldPrice: 1000, owned: 0, totalCost: 0 }
+    ];
+
+    // 2. 화면 초기 그리기
+    function init() {
+        const board = document.getElementById('stock-board');
+        const portfolio = document.getElementById('portfolio-body');
+        
+        board.innerHTML = '';
+        portfolio.innerHTML = '';
+
+        stocks.forEach(s => {
+            // 상단 버튼 생성
+            board.innerHTML += `
+                <button class="stock-btn" id="btn-${s.id}" onclick="selectStock('${s.id}')">
+                    <span>${s.name}</span>
+                    <div class="price-info">
+                        <div id="price-${s.id}">${s.price.toLocaleString()}</div>
+                        <div class="change-rate" id="rate-board-${s.id}">0%</div>
+                    </div>
+                </button>
+            `;
+            // 포트폴리오 행 생성
+            portfolio.innerHTML += `
+                <tr id="row-${s.id}">
+                    <td>${s.name}</td>
+                    <td id="owned-${s.id}">0</td>
+                    <td id="avg-${s.id}">0</td>
+                    <td id="curr-${s.id}">${s.price.toLocaleString()}</td>
+                    <td id="yield-${s.id}">0%</td>
+                </tr>
+            `;
+        });
+        updateAssetUI();
+    }
+
+    // 3. 종목 선택
+    function selectStock(id) {
+        selectedId = id;
+        const stock = stocks.find(s => s.id === id);
+        document.getElementById('selected-title').innerText = stock.name;
+        
+        // 버튼 활성화 표시
+        document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`btn-${id}`).classList.add('active');
+    }
+
+    // 4. 거래 실행 (매수/매도 통합)
+    function executeTrade(type) {
+        if (!selectedId) return alert('종목을 먼저 선택하세요!');
+        const qty = Number(document.getElementById('trade-qty').value);
+        if (qty <= 0) return alert('수량을 입력하세요!');
+
+        const stock = stocks.find(s => s.id === selectedId);
+        const totalTradePrice = stock.price * qty;
+
+        if (type === 'buy') {
+            if (asset < totalTradePrice) return alert('자산이 부족합니다!');
+            asset -= totalTradePrice;
+            stock.totalCost += totalTradePrice;
+            stock.owned += qty;
+        } else {
+            if (stock.owned < qty) return alert('보유 수량이 부족합니다!');
+            asset += totalTradePrice;
+            // 매도 시에는 기존 평단가를 유지하며 전체 투자원금에서 차감
+            const avg = stock.totalCost / stock.owned;
+            stock.owned -= qty;
+            stock.totalCost = stock.owned * avg; 
+            if (stock.owned === 0) { stock.totalCost = 0; }
+        }
+
+        document.getElementById('trade-qty').value = '';
+        updateUI();
+    }
+
+    // 5. 가격 변동 로직
+    function updatePrices() {
+        stocks.forEach(s => {
+            const changePercent = (Math.random() * 0.6) - 0.3; // -30% ~ +30%
+            s.oldPrice = s.price;
+            s.price = Math.max(100, Math.floor(s.price * (1 + changePercent)));
+        });
+        updateUI();
+    }
+
+    // 6. UI 일괄 업데이트
+    function updateUI() {
+        stocks.forEach(s => {
+            // 보드 업데이트
+            const priceEl = document.getElementById(`price-${s.id}`);
+            const rateBoardEl = document.getElementById(`rate-board-${s.id}`);
+            priceEl.innerText = s.price.toLocaleString();
+            
+            const boardDiff = ((s.price - s.oldPrice) / s.oldPrice * 100).toFixed(2);
+            rateBoardEl.innerText = (boardDiff > 0 ? '▲' : '▼') + Math.abs(boardDiff) + '%';
+            rateBoardEl.className = 'change-rate ' + (boardDiff > 0 ? 'up' : (boardDiff < 0 ? 'down' : ''));
+
+            // 포트폴리오 업데이트
+            document.getElementById(`owned-${s.id}`).innerText = s.owned.toLocaleString();
+            const avg = s.owned > 0 ? Math.floor(s.totalCost / s.owned) : 0;
+            document.getElementById(`avg-${s.id}`).innerText = avg.toLocaleString();
+            document.getElementById(`curr-${s.id}`).innerText = s.price.toLocaleString();
+            
+            const yieldEl = document.getElementById(`yield-${s.id}`);
+            if (s.owned > 0) {
+                const yieldRate = ((s.price - avg) / avg * 100).toFixed(2);
+                yieldEl.innerText = yieldRate + '%';
+                yieldEl.className = yieldRate > 0 ? 'up' : (yieldRate < 0 ? 'down' : '');
+            } else {
+                yieldEl.innerText = '0%';
+                yieldEl.className = '';
+            }
+        });
+        updateAssetUI();
+    }
+
+    function updateAssetUI() {
+        document.getElementById('user-asset').innerText = Math.floor(asset).toLocaleString();
+    }
+
+    // 7. 타이머 시스템
+    setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer').innerText = timeLeft;
+        if (timeLeft <= 0) {
+            updatePrices();
+            timeLeft = 30;
+        }
+    }, 1000);
+
+    init();
+</script>
+</body>
+</html>
