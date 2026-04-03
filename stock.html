@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Simulator - Flash News Edition</title>
+    <title>Stock Simulator - Intense 20s News Edition</title>
     <style>
         :root {
             --bg-color: #1e1e1e;
@@ -17,22 +17,32 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Pretendard', -apple-system, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; display: flex; justify-content: center; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; display: flex; justify-content: center; overflow-x: hidden; }
         #container { width: 100%; max-width: 1100px; display: flex; flex-direction: column; gap: 15px; }
+
+        /* 화면 진동 효과 */
+        .shake { animation: shake-animation 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake-animation {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+            40%, 60% { transform: translate3d(8px, 0, 0); }
+        }
 
         /* 헤더 & 뉴스 전광판 */
         .header { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; }
         .news-bar { 
-            background: #252525; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);
-            display: flex; align-items: center; justify-content: center; height: 50px; margin-top: 10px;
+            background: #000; padding: 10px; border-radius: 8px; border: 1px solid #555;
+            display: flex; align-items: center; justify-content: center; height: 60px; margin-top: 10px;
+            transition: background 0.4s;
         }
-        #news-display { font-size: 1.1rem; font-weight: 600; text-align: center; transition: 0.3s; }
+        #news-display { font-size: 1.25rem; font-weight: 900; text-align: center; }
 
-        /* 뉴스 깜박임 애니메이션 */
-        .blink { animation: blink-animation 1s steps(2, start) infinite; }
-        @keyframes blink-animation { to { visibility: hidden; } }
+        /* 광속 깜박임 */
+        .blink { animation: blink-fast 0.4s steps(2, start) infinite; }
+        @keyframes blink-fast { to { visibility: hidden; } }
 
-        /* 타이머 및 보드 레이아웃 (기존과 동일) */
+        /* 타이머 및 레이아웃 */
         #time-display { font-size: 1.1rem; color: var(--primary-blue); font-weight: bold; margin-bottom: 5px; }
         .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
         .stock-btn { 
@@ -63,13 +73,13 @@
         .down { color: var(--accent-blue); }
     </style>
 </head>
-<body>
+<body id="main-body">
 
 <div id="container">
     <div class="header">
         <h1>실시간 주식 시뮬레이터</h1>
         <div id="time-display">다음 변동까지: <span id="timer">30</span>초</div>
-        <div class="news-bar">
+        <div class="news-bar" id="news-bar-bg">
             <div id="news-display" style="color: var(--news-gold);">
                 [안내] 30초마다 전 세계 경제 소식이 업데이트됩니다.
             </div>
@@ -127,22 +137,22 @@
     ];
 
     const newsList = [
-        { text: "오성전자, 차세대 반도체 수주 성공! 주가 급등 예고", target: "os", impact: 0.25 },
-        { text: "오성전자 공장 가동 중단 소식에 반도체 수급 우려", target: "os", impact: -0.2 },
-        { text: "미래자동차, 자율주행 소프트웨어 혁신으로 선주문 폭주", target: "mr", impact: 0.2 },
-        { text: "미래자동차, 배터리 결함으로 인한 대규모 리콜 결정", target: "mr", impact: -0.3 },
-        { text: "파파야게임즈, 신작 출시 당일 매출 500억 달성", target: "pp", impact: 0.35 },
-        { text: "파파야게임즈, 게임 내 개인정보 유출 사고 발생", target: "pp", impact: -0.25 },
-        { text: "알지화학, 차세대 전고체 배터리 양산 체제 구축", target: "rg", impact: 0.2 },
-        { text: "알지화학, 원자재 가격 폭등으로 수익성 하락 전망", target: "rg", impact: -0.15 },
-        { text: "떼쓸라, 전기차 충전 네트워크 전면 개방 발표", target: "ts", impact: 0.15 },
-        { text: "떼쓸라 CEO, SNS를 통한 돌발 발언으로 시장 혼조세", target: "ts", impact: -0.2 },
-        { text: "고가콜라, 한정판 굿즈 열풍에 실적 최고치 경신", target: "co", impact: 0.1 },
-        { text: "고가콜라, 건강 음료 선호에 따른 탄산 판매 감소", target: "co", impact: -0.12 },
-        { text: "뒤즈니, 테마파크 방문객 회복 및 흑자 전환", target: "dg", impact: 0.18 },
-        { text: "뒤즈니, 기대작 개봉 연기 발표로 실망 매물 출현", target: "dg", impact: -0.15 },
-        { text: "넷플렉스, 광고 요금제 안착에 따른 가입자 급증", target: "np", impact: 0.15 },
-        { text: "넷플렉스, 계정 공유 금지로 사용자 이탈 우려", target: "np", impact: -0.1 }
+        { text: "오성전자, 차세대 반도체 수주 성공! 주가 폭등 예고", target: "os", impact: 0.25 },
+        { text: "오성전자 공장 화재 발생! 생산 라인 전면 중단", target: "os", impact: -0.25 },
+        { text: "미래자동차, 혁신적 자율주행 발표에 전 세계 열광", target: "mr", impact: 0.2 },
+        { text: "미래자동차, 대규모 결함 발견으로 리콜 및 소송 위기", target: "mr", impact: -0.3 },
+        { text: "파파야게임즈, 신작 전 세계 매출 1위 기록 돌파", target: "pp", impact: 0.3 },
+        { text: "파파야게임즈, 핵심 개발진 집단 퇴사로 신작 무산 위기", target: "pp", impact: -0.2 },
+        { text: "알지화학, 차세대 전고체 배터리 상용화 임박 소식", target: "rg", impact: 0.2 },
+        { text: "알지화학, 치명적 환경 오염 유출 사고 조사 착수", target: "rg", impact: -0.25 },
+        { text: "떼쓸라, 전기차 혁명 주도하며 분기 실적 2배 달성", target: "ts", impact: 0.2 },
+        { text: "떼쓸라, CEO의 돌발 기행으로 투자 심리 최악", target: "ts", impact: -0.2 },
+        { text: "뒤즈니, 구독자 급증 및 테마파크 수익 최고조", target: "dg", impact: 0.15 },
+        { text: "뒤즈니, 기대작 잇따른 흥행 참패로 주가 급락", target: "dg", impact: -0.2 },
+        { text: "고가콜라, 전 세계 판매량 폭증으로 어닝 서프라이즈", target: "co", impact: 0.15 },
+        { text: "고가콜라, 설탕세 인상 소식에 수익성 악화 우려", target: "co", impact: -0.1 },
+        { text: "넷플렉스, 신작 시리즈 전 세계 신드롬급 인기", target: "np", impact: 0.2 },
+        { text: "넷플렉스, 경쟁사 서비스의 거센 공격에 가입자 감소", target: "np", impact: -0.15 }
     ];
 
     function init() {
@@ -172,9 +182,9 @@
     }
 
     function executeTrade(type) {
-        if (!selectedId) return alert('종목을 선택하세요!');
+        if (!selectedId) return alert('종목 선택!');
         const qty = Number(document.getElementById('trade-qty').value);
-        if (qty <= 0) return alert('정확한 수량을 입력하세요!');
+        if (qty <= 0) return alert('수량 확인!');
         const stock = stocks.find(s => s.id === selectedId);
         const total = stock.price * qty;
         if (type === 'buy') {
@@ -196,28 +206,37 @@
             s.price = Math.max(100, Math.floor(s.price * (1 + change)));
         });
 
-        // 뉴스 로직: 깜박임 적용
         const newsEl = document.getElementById('news-display');
+        const newsBar = document.getElementById('news-bar-bg');
+        const container = document.getElementById('container');
         const news = newsList[Math.floor(Math.random() * newsList.length)];
         
-        newsEl.innerText = `[속보] ${news.text}`;
-        newsEl.classList.add('blink'); // 깜박임 시작
+        // 뉴스 연출 시작 (20초 유지)
+        newsEl.innerText = `[긴급 속보] ${news.text}`;
+        newsEl.classList.add('blink'); 
+        container.classList.add('shake');
         
-        if (news.impact > 0) newsEl.style.color = "var(--accent-red)";
-        else if (news.impact < 0) newsEl.style.color = "var(--accent-blue)";
-        else newsEl.style.color = "var(--news-gold)";
+        if (news.impact > 0) {
+            newsEl.style.color = "#fff"; 
+            newsBar.style.backgroundColor = "var(--accent-red)"; 
+        } else {
+            newsEl.style.color = "#fff"; 
+            newsBar.style.backgroundColor = "var(--accent-blue)";
+        }
 
         if(news.target) {
             const targetStock = stocks.find(s => s.id === news.target);
             if(targetStock) targetStock.nextImpact = news.impact;
         }
 
-        // 10초 후 깜박임 멈추고 기본 문구로 복귀
+        // 정확히 20초 후 안내 문구로 복귀 (타이머 10초 남았을 때)
         setTimeout(() => {
             newsEl.classList.remove('blink');
+            container.classList.remove('shake');
             newsEl.innerText = "[안내] 30초마다 전 세계 경제 소식이 업데이트됩니다.";
             newsEl.style.color = "var(--news-gold)";
-        }, 10000);
+            newsBar.style.backgroundColor = "#000";
+        }, 20000);
 
         updateUI();
     }
@@ -246,7 +265,10 @@
     setInterval(() => {
         timeLeft--;
         document.getElementById('timer').innerText = timeLeft;
-        if (timeLeft <= 0) { updatePrices(); timeLeft = 30; }
+        if (timeLeft <= 0) { 
+            updatePrices(); 
+            timeLeft = 30; 
+        }
     }, 1000);
 
     init();
